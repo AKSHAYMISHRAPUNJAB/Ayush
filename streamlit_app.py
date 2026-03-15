@@ -442,4 +442,139 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ══════════════════════════
+# ══════════════════════════════════════════════
+#  STATUS BAR
+# ══════════════════════════════════════════════
+is_run   = astate.running
+scls     = 'run' if is_run else 'stp'
+stxt     = 'RUNNING' if is_run else 'STOPPED'
+cid_disp = (cfg['chat_id'][:10]+'…') if cfg['chat_id'] and len(cfg['chat_id'])>10 else (cfg['chat_id'] or 'NOT SET')
+ck_disp  = f"{len(st.session_state.multi_cookies)} COOKIES" if st.session_state.cookie_mode=='multiple' else ("SET" if st.session_state.single_cookie.strip() else "NONE")
+mc_cnt   = len([m for m in cfg['messages'].split('\n') if m.strip()]) if cfg['messages'] else 0
+
+st.markdown(f"""
+<div class="metrics">
+    <div class="mbox"><span class="mval">{astate.message_count}</span><span class="mlbl">SENT</span></div>
+    <div class="mbox"><span class="mval {scls}">{stxt}</span><span class="mlbl">STATUS</span></div>
+    <div class="mbox"><span class="mval" style="font-size:.88rem;">{cid_disp}</span><span class="mlbl">CHAT ID</span></div>
+    <div class="mbox"><span class="mval" style="font-size:.88rem;">{ck_disp}</span><span class="mlbl">COOKIE</span></div>
+    <div class="mbox"><span class="mval" style="font-size:.88rem;">{mc_cnt}</span><span class="mlbl">MESSAGES</span></div>
+</div>
+""", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+#  START / STOP / REFRESH BUTTONS
+# ══════════════════════════════════════════════
+b1, b2, b3 = st.columns([2,2,1], gap="small")
+with b1:
+    if st.button("START AUTOMATION", key="start_btn", disabled=is_run or not cfg['chat_id'], use_container_width=True):
+        start_auto(cfg)
+        st.success("Automation started!")
+        st.rerun()
+with b2:
+    if st.button("STOP AUTOMATION", key="stop_btn", disabled=not is_run, use_container_width=True):
+        stop_auto()
+        st.warning("Stop signal sent!")
+        st.rerun()
+with b3:
+    if st.button("REFRESH", key="ref_btn", use_container_width=True):
+        st.rerun()
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+#  PANEL 1 — TARGET SETTINGS
+# ══════════════════════════════════════════════
+with st.expander("TARGET SETTINGS", expanded=True):
+    c1, c2, c3 = st.columns([2,2,1], gap="medium")
+    with c1:
+        v_chatid = st.text_input("CHAT / E2EE ID", value=cfg['chat_id'], placeholder="1362400298935018")
+    with c2:
+        v_prefix = st.text_input("NAME PREFIX", value=cfg['name_prefix'], placeholder="[YKTI RAWAT]")
+    with c3:
+        v_delay  = st.number_input("DELAY (SEC)", min_value=1, max_value=300, value=cfg['delay'])
+    # auto-save on change
+    st.session_state.cfg['chat_id']     = v_chatid
+    st.session_state.cfg['name_prefix'] = v_prefix
+    st.session_state.cfg['delay']       = int(v_delay)
+
+# ══════════════════════════════════════════════
+#  PANEL 2 — COOKIE CONFIG
+# ══════════════════════════════════════════════
+with st.expander("COOKIE CONFIG", expanded=False):
+    ck_mode = st.radio("COOKIE MODE",
+                       ["Single Cookie", "Multiple Cookies (Upload TXT)"],
+                       index=0 if st.session_state.cookie_mode=='single' else 1,
+                       horizontal=True)
+    st.session_state.cookie_mode = 'single' if ck_mode=="Single Cookie" else 'multiple'
+
+    if st.session_state.cookie_mode == 'single':
+        sc = st.text_area("PASTE YOUR FACEBOOK COOKIE", value=st.session_state.single_cookie,
+                          placeholder="c_user=xxxx; xs=xxxx; datr=xxxx; ...", height=100)
+        st.session_state.single_cookie = sc
+        st.session_state.cfg['cookies'] = sc
+    else:
+        ck_f = st.file_uploader("UPLOAD cookie.txt (one cookie per line)", type=['txt'], key="ck_up")
+        if ck_f:
+            lines = [l.strip() for l in ck_f.read().decode('utf-8','ignore').split('\n') if l.strip()]
+            st.session_state.multi_cookies = lines
+            if lines: st.session_state.cfg['cookies'] = lines[0]
+            st.success(f"Loaded {len(lines)} cookies")
+        for i,c in enumerate(st.session_state.multi_cookies):
+            p = c[:52]+'…' if len(c)>52 else c
+            st.markdown(f'<span class="pill">Cookie {i+1}: {p}</span>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+#  PANEL 3 — MESSAGE FILE UPLOAD
+# ══════════════════════════════════════════════
+with st.expander("MESSAGE CONFIG", expanded=False):
+    msg_f = st.file_uploader("UPLOAD messages.txt  —  one message per line", type=['txt'], key="msg_up")
+    if msg_f:
+        lines = [l.strip() for l in msg_f.read().decode('utf-8','ignore').split('\n') if l.strip()]
+        st.session_state.msg_list = lines
+        st.session_state.cfg['messages'] = '\n'.join(lines)
+        st.success(f"Loaded {len(lines)} messages")
+    if st.session_state.msg_list:
+        for i,m in enumerate(st.session_state.msg_list[:6]):
+            p = m[:58]+'…' if len(m)>58 else m
+            st.markdown(f'<span class="pill">Line {i+1}: {p}</span>', unsafe_allow_html=True)
+        if len(st.session_state.msg_list) > 6:
+            st.markdown(f'<span class="pill">+{len(st.session_state.msg_list)-6} more messages…</span>', unsafe_allow_html=True)
+    elif not st.session_state.msg_list:
+        st.markdown('<span class="pill">No messages loaded yet — upload a TXT file above</span>', unsafe_allow_html=True)
+
+st.markdown("<hr>", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+#  LIVE LOGS
+# ══════════════════════════════════════════════
+total_l   = len(astate.logs)
+success_l = sum(1 for l in astate.logs if '✅' in l or 'sent' in l.lower())
+error_l   = sum(1 for l in astate.logs if '❌' in l.lower() or 'error' in l.lower())
+
+with st.expander(f"LIVE LOGS  —  {total_l} lines  |  {success_l} ok  |  {error_l} err", expanded=is_run):
+    _, clr_col = st.columns([5,1])
+    with clr_col:
+        if st.button("CLEAR", use_container_width=True, key="clr_logs"):
+            st.session_state.astate.logs = []
+            st.rerun()
+
+    if astate.logs:
+        html = '<div class="console-wrap"><div class="console-bar"><span class="cd cr"></span><span class="cd cy"></span><span class="cd cg"></span>&nbsp;&nbsp;YKTI RAWAT // CONSOLE</div><div class="console-out" id="co">'
+        for log in astate.logs[-100:]:
+            esc = log.replace('<','&lt;').replace('>','&gt;')
+            html += f'<div class="lg {log_cls(log)}">{esc}</div>'
+        html += '</div></div><script>var c=document.getElementById("co");if(c)c.scrollTop=c.scrollHeight;</script>'
+        st.markdown(html, unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="console-wrap"><div class="console-bar"><span class="cd cr"></span><span class="cd cy"></span><span class="cd cg"></span>&nbsp;&nbsp;YKTI RAWAT // CONSOLE</div><div class="console-out" style="text-align:center;color:rgba(0,255,136,.2);padding:2rem 1rem;">// NO LOGS YET — START AUTOMATION TO SEE OUTPUT</div></div>', unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════
+#  AUTO-REFRESH
+# ══════════════════════════════════════════════
+if is_run:
+    st.markdown('<div style="text-align:center;margin:.6rem 0"><span class="pill" style="border-color:rgba(0,255,136,.45);color:#00ff88;">AUTOMATION RUNNING — auto refresh every 3s</span></div>', unsafe_allow_html=True)
+    time.sleep(3)
+    st.rerun()
+
+st.markdown('<div class="ftr">MADE WITH ❤ BY HECKER KING &nbsp;|&nbsp; 2026 &nbsp;|&nbsp; PREMIUM E2EE SYSTEM</div>', unsafe_allow_html=True)
