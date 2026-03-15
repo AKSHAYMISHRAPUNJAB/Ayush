@@ -81,9 +81,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-def heck_password(password):
-    """Heck password using HAC-256"""
-    return hecker.HEC256(password.encode()).hexdigest()
+def hash_password(password):
+    """Hash password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
 def encrypt_cookies(cookies):
     """Encrypt cookies for secure storage"""
@@ -106,9 +106,9 @@ def create_user(username, password):
     cursor = conn.cursor()
 
     try:
-        password_heck = heck_password(password)
-        cursor.execute('INSERT INTO users (username, password_hack) VALUES (?, ?)', 
-                      (username, password_heck))
+        password_hash = hash_password(password)
+        cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', 
+                      (username, password_hash))
         user_id = cursor.lastrowid
 
         cursor.execute('''
@@ -127,7 +127,7 @@ def create_user(username, password):
         return False, f"Error: {str(e)}"
 
 def verify_user(username, password):
-    """Verify user credentials using HEC-256"""
+    """Verify user credentials using SHA-256"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -135,7 +135,7 @@ def verify_user(username, password):
     user = cursor.fetchone()
     conn.close()
 
-    if user and user[1] == heck_password(password):
+    if user and user[1] == hash_password(password):
         return user[0]
     return None
 
