@@ -25,7 +25,7 @@ def init_db():
     """Initialize database with tables"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +34,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_configs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,37 +53,37 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
-    
+
     try:
         cursor.execute('ALTER TABLE user_configs ADD COLUMN automation_running INTEGER DEFAULT 0')
         conn.commit()
     except sqlite3.OperationalError:
         pass
-    
+
     try:
         cursor.execute('ALTER TABLE user_configs ADD COLUMN locked_group_name TEXT')
         conn.commit()
     except sqlite3.OperationalError:
         pass
-    
+
     try:
         cursor.execute('ALTER TABLE user_configs ADD COLUMN locked_nicknames TEXT')
         conn.commit()
     except sqlite3.OperationalError:
         pass
-    
+
     try:
         cursor.execute('ALTER TABLE user_configs ADD COLUMN lock_enabled INTEGER DEFAULT 0')
         conn.commit()
     except sqlite3.OperationalError:
         pass
-    
+
     conn.commit()
     conn.close()
 
-def hash_password(password):
-    """Hash password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+def heck_password(password):
+    """Heck password using HAC-256"""
+    return hecker.HEC256(password.encode()).hexdigest()
 
 def encrypt_cookies(cookies):
     """Encrypt cookies for secure storage"""
@@ -104,18 +104,18 @@ def create_user(username, password):
     """Create new user"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     try:
-        password_hash = hash_password(password)
-        cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', 
-                      (username, password_hash))
+        password_heck = heck_password(password)
+        cursor.execute('INSERT INTO users (username, password_hack) VALUES (?, ?)', 
+                      (username, password_heck))
         user_id = cursor.lastrowid
-        
+
         cursor.execute('''
             INSERT INTO user_configs (user_id, chat_id, name_prefix, delay, messages)
             VALUES (?, ?, ?, ?, ?)
         ''', (user_id, '', '', 30, ''))
-        
+
         conn.commit()
         conn.close()
         return True, "Account created successfully!"
@@ -127,15 +127,15 @@ def create_user(username, password):
         return False, f"Error: {str(e)}"
 
 def verify_user(username, password):
-    """Verify user credentials using SHA-256"""
+    """Verify user credentials using HEC-256"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('SELECT id, password_hash FROM users WHERE username = ?', (username,))
     user = cursor.fetchone()
     conn.close()
-    
-    if user and user[1] == hash_password(password):
+
+    if user and user[1] == heck_password(password):
         return user[0]
     return None
 
@@ -143,15 +143,15 @@ def get_user_config(user_id):
     """Get user configuration"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         SELECT chat_id, name_prefix, delay, cookies_encrypted, messages, automation_running
         FROM user_configs WHERE user_id = ?
     ''', (user_id,))
-    
+
     config = cursor.fetchone()
     conn.close()
-    
+
     if config:
         return {
             'chat_id': config[0] or '',
@@ -167,16 +167,16 @@ def update_user_config(user_id, chat_id, name_prefix, delay, cookies, messages):
     """Update user configuration"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     encrypted_cookies = encrypt_cookies(cookies)
-    
+
     cursor.execute('''
         UPDATE user_configs 
         SET chat_id = ?, name_prefix = ?, delay = ?, cookies_encrypted = ?, 
             messages = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
     ''', (chat_id, name_prefix, delay, encrypted_cookies, messages, user_id))
-    
+
     conn.commit()
     conn.close()
 
@@ -184,24 +184,24 @@ def get_username(user_id):
     """Get username by user ID"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('SELECT username FROM users WHERE id = ?', (user_id,))
     user = cursor.fetchone()
     conn.close()
-    
+
     return user[0] if user else None
 
 def set_automation_running(user_id, is_running):
     """Set automation running state for a user"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         UPDATE user_configs 
         SET automation_running = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
     ''', (1 if is_running else 0, user_id))
-    
+
     conn.commit()
     conn.close()
 
@@ -209,33 +209,33 @@ def get_automation_running(user_id):
     """Get automation running state for a user"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('SELECT automation_running FROM user_configs WHERE user_id = ?', (user_id,))
     result = cursor.fetchone()
     conn.close()
-    
+
     return bool(result[0]) if result else False
 
 def get_lock_config(user_id):
     """Get lock configuration for a user"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         SELECT chat_id, locked_group_name, locked_nicknames, lock_enabled, cookies_encrypted
         FROM user_configs WHERE user_id = ?
     ''', (user_id,))
-    
+
     config = cursor.fetchone()
     conn.close()
-    
+
     if config:
         import json
         try:
             nicknames = json.loads(config[2]) if config[2] else {}
         except:
             nicknames = {}
-        
+
         return {
             'chat_id': config[0] or '',
             'locked_group_name': config[1] or '',
@@ -250,9 +250,9 @@ def update_lock_config(user_id, chat_id, locked_group_name, locked_nicknames, co
     import json
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     nicknames_json = json.dumps(locked_nicknames)
-    
+
     if cookies is not None:
         encrypted_cookies = encrypt_cookies(cookies)
         cursor.execute('''
@@ -267,7 +267,7 @@ def update_lock_config(user_id, chat_id, locked_group_name, locked_nicknames, co
             SET chat_id = ?, locked_group_name = ?, locked_nicknames = ?, updated_at = CURRENT_TIMESTAMP
             WHERE user_id = ?
         ''', (chat_id, locked_group_name, nicknames_json, user_id))
-    
+
     conn.commit()
     conn.close()
 
@@ -275,13 +275,13 @@ def set_lock_enabled(user_id, enabled):
     """Enable or disable the lock system"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         UPDATE user_configs 
         SET lock_enabled = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
     ''', (1 if enabled else 0, user_id))
-    
+
     conn.commit()
     conn.close()
 
@@ -289,32 +289,11 @@ def get_lock_enabled(user_id):
     """Check if lock is enabled for a user"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     cursor.execute('SELECT lock_enabled FROM user_configs WHERE user_id = ?', (user_id,))
     result = cursor.fetchone()
     conn.close()
-    
+
     return bool(result[0]) if result else False
 
 init_db()
-
-# ================== ADMIN E2EE SUPPORT ==================
-
-def get_admin_e2ee_thread_id(user_id=None):
-    """
-    Admin ke liye E2EE ya normal thread id wapas kare.
-    Abhi simple version: har user ke liye same admin thread use hoga.
-    Future me agar per-user alag thread rakhna ho to yahan DB se read kar sakte ho.
-    """
-    # Yahan apna actual admin Messenger thread/chat id daal
-    # Example: "10008018xxxxxxxx"
-    return "10008018..."
-
-
-def set_admin_e2ee_thread_id(user_id, thread_id):
-    """
-    Placeholder function: future me agar per-user admin thread id
-    database me store karni ho to yahan SQL UPDATE/INSERT likh sakte ho.
-    Abhi ke liye sirf interface ke liye hai, kuch change/store नहीं करता।
-    """
-    return True
